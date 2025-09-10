@@ -3,6 +3,11 @@ package view;
 import dao.HoiVienDAO;
 import model.HoiVien;
 import util.ValidationUtil;
+import dao.GoiTapDAO;
+import model.GoiTap;
+import java.util.Calendar;
+import dao.ThuPhiDAO;
+import model.ThuPhi;
 
 import javax.swing.*;
 import java.awt.*;
@@ -16,6 +21,8 @@ import java.util.List;
 public class HoiVienPanel extends JPanel {
 
     private final HoiVienDAO hoiVienDAO = new HoiVienDAO();
+    private final GoiTapDAO goiTapDAO = new GoiTapDAO();
+    private final ThuPhiDAO thuPhiDAO = new ThuPhiDAO();
     private JTable table;
     private JTextField txtSearch;
     private JButton btnSearch;
@@ -26,6 +33,8 @@ public class HoiVienPanel extends JPanel {
     private JButton btnSave;
     private JButton btnCancel;
     private JCheckBox chkActiveOnly;
+    private JButton btnRenew;
+    private JCheckBox chkAutoInvoice;
 
     // Form nhập liệu
     private JTextField txtMa;
@@ -71,6 +80,10 @@ public class HoiVienPanel extends JPanel {
         actionPanel.add(btnDelete);
         actionPanel.add(btnSave);
         actionPanel.add(btnCancel);
+        btnRenew = new JButton("Gia hạn gói");
+        actionPanel.add(btnRenew);
+        chkAutoInvoice = new JCheckBox("Tạo hóa đơn khi lưu", true);
+        actionPanel.add(chkAutoInvoice);
         top.add(actionPanel, BorderLayout.WEST);
         add(top, BorderLayout.NORTH);
 
@@ -135,6 +148,7 @@ public class HoiVienPanel extends JPanel {
         btnDelete.addActionListener(e -> onDelete());
         btnSave.addActionListener(e -> onSave());
         btnCancel.addActionListener(e -> onCancel());
+        btnRenew.addActionListener(e -> onRenew());
 
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -245,8 +259,31 @@ public class HoiVienPanel extends JPanel {
         HoiVien hv = buildFromForm();
         if (hv == null) return;
         try {
-            boolean ok = isNew ? hoiVienDAO.insert(hv) : hoiVienDAO.update(hv);
+            // Auto-calc expiry and sessions from selected package if applicable
+            autoFillPackageDerivedFields(hv);
+            boolean wasNew = isNew;
+            boolean ok = wasNew ? hoiVienDAO.insert(hv) : hoiVienDAO.update(hv);
             if (ok) {
+                // Auto-create invoice for new member if requested and package present
+                if (wasNew && chkAutoInvoice.isSelected() && !ValidationUtil.isEmpty(hv.getMaGoiTap())) {
+                    try {
+                        GoiTap gt = goiTapDAO.getById(hv.getMaGoiTap());
+                        if (gt != null && gt.getGiaTien() != null) {
+                            ThuPhi tp = new ThuPhi();
+                            tp.setMaPhieu(thuPhiDAO.getNextId());
+                            tp.setMaHoiVien(hv.getMaHoiVien());
+                            tp.setLoaiPhi("Gói tập");
+                            tp.setSoTien(gt.getGiaTien());
+                            tp.setNgayThu(hv.getNgayDangKy() != null ? hv.getNgayDangKy() : new Date());
+                            tp.setPhuongThucTT("Tiền mặt");
+                            tp.setNguoiThu("Admin");
+                            tp.setGhiChu("Đăng ký " + gt.getTenGoiTap());
+                            thuPhiDAO.insert(tp);
+                        }
+                    } catch (Exception ignore) {
+                        // Không chặn luồng nếu tạo hóa đơn thất bại
+                    }
+                }
                 reload();
                 setEditing(false);
                 JOptionPane.showMessageDialog(this, "Đã lưu.");
@@ -272,6 +309,8 @@ public class HoiVienPanel extends JPanel {
         btnDelete.setEnabled(!editing);
         btnSearch.setEnabled(!editing);
         btnRefresh.setEnabled(!editing);
+        btnRenew.setEnabled(!editing);
+        chkAutoInvoice.setEnabled(!editing);
 
         txtMa.setEnabled(false);
         txtTen.setEnabled(editing);
@@ -380,6 +419,88 @@ public class HoiVienPanel extends JPanel {
             return null;
         }
         return hv;
+    }
+
+    // Auto-calc helpers
+    private void autoFillPackageDerivedFields(HoiVien hv) {
+        try {
+            String maGoiTap = hv.getMaGoiTap();
+            if (ValidationUtil.isEmpty(maGoiTap)) return;
+            GoiTap gt = goiTapDAO.getById(maGoiTap);
+            if (gt == null) return;
+
+            // Ensure NgayBatDau
+            Date ngayBatDau = hv.getNgayBatDau();
+            if (ngayBatDau == null) {
+                // Prefer NgayDangKy, fallback today
+                ngayBatDau = hv.getNgayDangKy() != null ? hv.getNgayDangKy() : new Date();
+                hv.setNgayBatDau(ngayBatDau);
+            }
+
+            // Calculate NgayKetThuc = NgayBatDau + ThoiHan (months)
+            if (hv.getNgayKetThuc() == null && gt.getThoiHan() > 0) {
+                Calendar cal = Calendar.getInstance();
+                cal.setTime(ngayBatDau);
+                cal.add(Calendar.MONTH, gt.getThoiHan());
+                hv.setNgayKetThuc(cal.getTime());
+            }
+
+            // Initialize SoBuoiConLai if new or not set
+            if (isNew || hv.getSoBuoiConLai() <= 0) {
+                hv.setSoBuoiConLai(gt.getSoBuoi());
+            }
+        } catch (Exception ignore) {
+            // Best-effort; do not block save if DAO fails
+        }
+    }
+
+    // Gia hạn gói cho hội viên + tạo phiếu thu
+    private void onRenew() {
+        int row = table.getSelectedRow();
+        if (row < 0) { JOptionPane.showMessageDialog(this, "Chọn một hội viên để gia hạn."); return; }
+        String ma = String.valueOf(table.getValueAt(row, 0));
+        try {
+            HoiVien hv = hoiVienDAO.getById(ma);
+            if (hv == null) { JOptionPane.showMessageDialog(this, "Không tìm thấy hội viên."); return; }
+            if (ValidationUtil.isEmpty(hv.getMaGoiTap())) { JOptionPane.showMessageDialog(this, "Hội viên chưa có gói để gia hạn."); return; }
+            GoiTap gt = goiTapDAO.getById(hv.getMaGoiTap());
+            if (gt == null) { JOptionPane.showMessageDialog(this, "Gói tập không tồn tại."); return; }
+
+            // Tính ngày bắt đầu mới là max(ngày hiện tại, ngày kết thúc hiện tại)
+            Date start = new Date();
+            if (hv.getNgayKetThuc() != null && hv.getNgayKetThuc().after(start)) {
+                start = hv.getNgayKetThuc();
+            }
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(start);
+            cal.add(Calendar.MONTH, gt.getThoiHan());
+            Date newEnd = cal.getTime();
+
+            hv.setNgayBatDau(start);
+            hv.setNgayKetThuc(newEnd);
+            hv.setSoBuoiConLai(hv.getSoBuoiConLai() + gt.getSoBuoi());
+            hv.setTrangThai(true);
+
+            // Cập nhật hội viên
+            if (!hoiVienDAO.update(hv)) { JOptionPane.showMessageDialog(this, "Không cập nhật được hội viên."); return; }
+
+            // Tạo phiếu thu
+            ThuPhi tp = new ThuPhi();
+            tp.setMaPhieu(thuPhiDAO.getNextId());
+            tp.setMaHoiVien(hv.getMaHoiVien());
+            tp.setLoaiPhi("Gói tập");
+            tp.setSoTien(gt.getGiaTien());
+            tp.setNgayThu(new Date());
+            tp.setPhuongThucTT("Tiền mặt");
+            tp.setNguoiThu("Admin");
+            tp.setGhiChu("Gia hạn " + gt.getTenGoiTap());
+            thuPhiDAO.insert(tp);
+
+            reload();
+            JOptionPane.showMessageDialog(this, "Đã gia hạn gói cho " + hv.getTenHoiVien());
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Lỗi gia hạn: " + ex.getMessage());
+        }
     }
 }
 

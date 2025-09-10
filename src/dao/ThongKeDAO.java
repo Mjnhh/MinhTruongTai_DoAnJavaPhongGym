@@ -71,6 +71,39 @@ public class ThongKeDAO {
         }
         return list;
     }
+
+    // Đăng ký mới theo tháng trong năm
+    public int soDangKyMoiTheoThang(int thang, int nam) {
+        String sql = "SELECT COUNT(*) FROM HoiVien WHERE MONTH(NgayDangKy) = ? AND YEAR(NgayDangKy) = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, thang);
+            ps.setInt(2, nam);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println("Lỗi khi thống kê đăng ký mới theo tháng: " + e.getMessage());
+        }
+        return 0;
+    }
+
+    public List<Object[]> soDangKyMoi12Thang(int nam) {
+        List<Object[]> list = new ArrayList<>();
+        String sql = "SELECT MONTH(NgayDangKy) m, COUNT(*) c FROM HoiVien WHERE YEAR(NgayDangKy) = ? GROUP BY MONTH(NgayDangKy) ORDER BY m";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, nam);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new Object[]{rs.getInt("m"), rs.getInt("c")});
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Lỗi khi thống kê 12 tháng: " + e.getMessage());
+        }
+        return list;
+    }
 }
 
 

@@ -14,16 +14,51 @@ public class ChamCongDAO {
     
     // Check-in hội viên
     public boolean checkIn(String maHoiVien) {
-        String sql = "INSERT INTO ChamCong (MaHoiVien, NgayTap, GioVao, GhiChu) VALUES (?, CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), N'Check-in')";
+        String insertSql = "INSERT INTO ChamCong (MaHoiVien, NgayTap, GioVao, GhiChu) VALUES (?, CAST(GETDATE() AS DATE), CAST(GETDATE() AS TIME), N'Check-in')";
+        String checkTodaySql = "SELECT COUNT(*) FROM ChamCong WHERE MaHoiVien = ? AND NgayTap = CAST(GETDATE() AS DATE)";
+        String decSql = "UPDATE HoiVien SET SoBuoiConLai = CASE WHEN SoBuoiConLai > 0 THEN SoBuoiConLai - 1 ELSE 0 END WHERE MaHoiVien = ?";
         
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            if (conn == null) return false;
+            conn.setAutoCommit(false);
             
-            ps.setString(1, maHoiVien);
-            return ps.executeUpdate() > 0;
+            // Chỉ decrement nếu đây là check-in đầu tiên trong ngày
+            try (PreparedStatement psCheck = conn.prepareStatement(checkTodaySql)) {
+                psCheck.setString(1, maHoiVien);
+                rs = psCheck.executeQuery();
+                if (rs.next() && rs.getInt(1) > 0) {
+                    // Đã có bản ghi hôm nay -> không chèn nữa
+                    conn.rollback();
+                    return false;
+                }
+            }
+            
+            // Thực hiện insert check-in
+            try (PreparedStatement psIns = conn.prepareStatement(insertSql)) {
+                psIns.setString(1, maHoiVien);
+                psIns.executeUpdate();
+            }
+            
+            // Giảm số buổi còn lại nếu còn > 0
+            try (PreparedStatement psDec = conn.prepareStatement(decSql)) {
+                psDec.setString(1, maHoiVien);
+                psDec.executeUpdate();
+            }
+            
+            conn.commit();
+            return true;
         } catch (SQLException e) {
+            try { if (conn != null) conn.rollback(); } catch (SQLException ignored) {}
             System.err.println("Lỗi khi check-in: " + e.getMessage());
             return false;
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
+            try { if (ps != null) ps.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.setAutoCommit(true); } catch (SQLException ignored) {}
         }
     }
     
@@ -393,5 +428,48 @@ public class ChamCongDAO {
         }
         
         return chamCong;
+    }
+
+    // Đếm số buổi vắng (no-show) của hội viên trong khoảng thời gian dựa trên LichTapPT không có check-in
+    public int countNoShowByMember(String maHoiVien, Date tuNgay, Date denNgay) {
+        String sql =
+            "SELECT COUNT(*) FROM LichTapPT lt " +
+            "WHERE lt.MaHoiVien = ? AND lt.NgayTap BETWEEN ? AND ? " +
+            "AND NOT EXISTS (SELECT 1 FROM ChamCong cc WHERE cc.MaHoiVien = lt.MaHoiVien AND cc.NgayTap = lt.NgayTap)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, maHoiVien);
+            ps.setDate(2, new java.sql.Date(tuNgay.getTime()));
+            ps.setDate(3, new java.sql.Date(denNgay.getTime()));
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println("Lỗi khi tính no-show: " + e.getMessage());
+        }
+        return 0;
+    }
+
+    // Danh sách no-show theo ngày (hội viên có lịch nhưng không check-in)
+    public List<Object[]> getNoShowByDate(Date ngay) {
+        List<Object[]> list = new ArrayList<>();
+        String sql =
+            "SELECT lt.MaHoiVien, lt.MaHLV, lt.GioBatDau, lt.GioKetThuc " +
+            "FROM LichTapPT lt " +
+            "WHERE lt.NgayTap = ? AND NOT EXISTS (SELECT 1 FROM ChamCong cc WHERE cc.MaHoiVien = lt.MaHoiVien AND cc.NgayTap = lt.NgayTap)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setDate(1, new java.sql.Date(ngay.getTime()));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new Object[]{
+                        rs.getString(1), rs.getString(2), rs.getTime(3), rs.getTime(4)
+                    });
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Lỗi khi lấy danh sách no-show: " + e.getMessage());
+        }
+        return list;
     }
 }

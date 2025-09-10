@@ -44,6 +44,7 @@ public class LichTapPTDAO {
 
     // Thêm lịch PT
     public boolean insert(LichTapPT lt) {
+        if (hasOverlap(lt, false)) return false;
         String sql = "INSERT INTO LichTapPT (MaHoiVien, MaHLV, NgayTap, GioBatDau, GioKetThuc, TrangThai) " +
                      "VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -63,6 +64,7 @@ public class LichTapPTDAO {
 
     // Cập nhật lịch PT
     public boolean update(LichTapPT lt) {
+        if (hasOverlap(lt, true)) return false;
         String sql = "UPDATE LichTapPT SET MaHoiVien = ?, MaHLV = ?, NgayTap = ?, GioBatDau = ?, GioKetThuc = ?, TrangThai = ? " +
                      "WHERE ID = ?";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -184,6 +186,35 @@ public class LichTapPTDAO {
         lt.setGioKetThuc(rs.getTime("GioKetThuc"));
         lt.setTrangThai(rs.getString("TrangThai"));
         return lt;
+    }
+
+    // Kiểm tra chồng lịch (HLV hoặc HV) trong cùng ngày và khung giờ giao nhau
+    private boolean hasOverlap(LichTapPT lt, boolean isUpdate) {
+        String base =
+            "SELECT COUNT(*) FROM LichTapPT WHERE NgayTap = ? AND (" +
+            "(MaHLV = ? ) OR (MaHoiVien = ?)) AND " +
+            "((GioBatDau < ? AND GioKetThuc > ?) OR (GioBatDau < ? AND GioKetThuc > ?) OR (? < GioKetThuc AND ? > GioBatDau))";
+        String sql = isUpdate ? base + " AND ID <> ?" : base;
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setDate(1, new java.sql.Date(lt.getNgayTap().getTime()));
+            ps.setString(2, lt.getMaHLV());
+            ps.setString(3, lt.getMaHoiVien());
+            // overlap conditions parameters
+            ps.setTime(4, lt.getGioKetThuc()); // existing start < new end
+            ps.setTime(5, lt.getGioBatDau());  // existing end > new start
+            ps.setTime(6, lt.getGioKetThuc());
+            ps.setTime(7, lt.getGioBatDau());
+            ps.setTime(8, lt.getGioBatDau());
+            ps.setTime(9, lt.getGioKetThuc());
+            if (isUpdate) ps.setInt(10, lt.getId());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            System.err.println("Lỗi kiểm tra chồng lịch: " + e.getMessage());
+        }
+        return false;
     }
 }
 

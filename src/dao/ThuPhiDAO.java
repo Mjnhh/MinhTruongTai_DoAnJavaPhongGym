@@ -377,4 +377,9 @@ public class ThuPhiDAO {
         
         return list;
     }
+    
+    // Doanh thu hôm nay
+    public BigDecimal getRevenueToday() {
+        return getRevenueByDate(new Date());
+    }
 }

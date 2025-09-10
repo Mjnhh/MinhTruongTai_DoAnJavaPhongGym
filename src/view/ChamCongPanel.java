@@ -32,6 +32,8 @@ public class ChamCongPanel extends JPanel {
     private JLabel lblCurrentInGym;
     private JTextArea txtWarnings;
     private JTabbedPane tabbedPane;
+    private JTable tblNoShow;
+    private JTable tblCurrent; // table for "Đang có mặt"
     
     private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
@@ -43,6 +45,8 @@ public class ChamCongPanel extends JPanel {
         startClock();
         reload();
         checkExpiryWarnings();
+        reloadNoShow();
+        loadCurrentMembers();
     }
 
     private void initComponents() {
@@ -97,12 +101,16 @@ public class ChamCongPanel extends JPanel {
         JPanel warningPanel = createWarningPanel();
         tabbedPane.addTab("Cảnh báo", warningPanel);
         
+        // Tab 4: No-Show
+        JPanel noshowPanel = createNoShowPanel();
+        tabbedPane.addTab("Vắng (No-Show)", noshowPanel);
+        
         add(tabbedPane, BorderLayout.CENTER);
 
         // Event handlers
         btnCheckIn.addActionListener(e -> doCheckIn());
         btnCheckOut.addActionListener(e -> doCheckOut());
-        btnRefresh.addActionListener(e -> reload());
+        btnRefresh.addActionListener(e -> { reload(); reloadNoShow(); loadCurrentMembers(); });
         
         // Enter key cho check-in nhanh
         txtMaHoiVien.addActionListener(e -> doCheckIn());
@@ -142,8 +150,8 @@ public class ChamCongPanel extends JPanel {
     private JPanel createCurrentPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         
-        JTable currentTable = new JTable();
-        JScrollPane scrollPane = new JScrollPane(currentTable);
+        tblCurrent = new JTable();
+        JScrollPane scrollPane = new JScrollPane(tblCurrent);
         scrollPane.setBorder(BorderFactory.createTitledBorder("Hội viên đang có mặt trong gym"));
         
         lblCurrentInGym = new JLabel();
@@ -156,8 +164,8 @@ public class ChamCongPanel extends JPanel {
         panel.add(topPanel, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         
-        // Load dữ liệu hội viên đang có mặt
-        loadCurrentMembers(currentTable);
+        // Initial load
+        loadCurrentMembers();
         
         return panel;
     }
@@ -183,6 +191,65 @@ public class ChamCongPanel extends JPanel {
         panel.add(scrollPane, BorderLayout.CENTER);
         
         return panel;
+    }
+
+    private JPanel createNoShowPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        tblNoShow = new JTable();
+        JScrollPane sp = new JScrollPane(tblNoShow);
+        sp.setBorder(BorderFactory.createTitledBorder("Lịch PT hôm nay không điểm danh"));
+        JButton btnReloadNoShow = new JButton("Tải lại danh sách vắng");
+        btnReloadNoShow.addActionListener(e -> reloadNoShow());
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.add(btnReloadNoShow);
+        panel.add(top, BorderLayout.NORTH);
+        panel.add(sp, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private void reloadNoShow() {
+        try {
+            List<Object[]> ns = chamCongDAO.getNoShowByDate(new Date());
+            String[] cols = {"Mã HV", "Mã HLV", "Giờ bắt đầu", "Giờ kết thúc"};
+            Object[][] data = new Object[ns.size()][cols.length];
+            for (int i = 0; i < ns.size(); i++) {
+                Object[] r = ns.get(i);
+                data[i][0] = r[0];
+                data[i][1] = r[1];
+                data[i][2] = r[2];
+                data[i][3] = r[3];
+            }
+            tblNoShow.setModel(new javax.swing.table.DefaultTableModel(data, cols));
+        } catch (Exception ex) {
+            tblNoShow.setModel(new javax.swing.table.DefaultTableModel(new Object[][]{}, new String[]{"Mã HV","Mã HLV","Giờ bắt đầu","Giờ kết thúc"}));
+        }
+    }
+
+    private void loadCurrentMembers() {
+        try {
+            List<ChamCong> currentMembers = chamCongDAO.getCurrentMembersInGym();
+            lblCurrentInGym.setText("Hiện có " + currentMembers.size() + " hội viên đang tập");
+            String[] columns = {"Mã HV", "Tên hội viên", "Giờ vào", "Thời gian tập"};
+            Object[][] data = new Object[currentMembers.size()][columns.length];
+            for (int i = 0; i < currentMembers.size(); i++) {
+                ChamCong cc = currentMembers.get(i);
+                data[i][0] = cc.getMaHoiVien();
+                data[i][1] = cc.getTenHoiVien();
+                data[i][2] = cc.getGioVao() != null ? cc.getGioVao().toString() : "";
+                long diffMs = cc.getGioVao() != null ? System.currentTimeMillis() - cc.getGioVao().getTime() : 0L;
+                long hours = diffMs / (1000 * 60 * 60);
+                long minutes = (diffMs % (1000 * 60 * 60)) / (1000 * 60);
+                data[i][3] = hours + "h " + minutes + "m";
+            }
+            if (tblCurrent != null) {
+                tblCurrent.setModel(new javax.swing.table.DefaultTableModel(data, columns));
+            }
+        } catch (Exception ex) {
+            if (tblCurrent != null) {
+                tblCurrent.setModel(new javax.swing.table.DefaultTableModel(new Object[][]{}, new String[]{"Mã HV","Tên hội viên","Giờ vào","Thời gian tập"}));
+            }
+            lblCurrentInGym.setText("Lỗi tải dữ liệu");
+        }
     }
 
     private void startClock() {
@@ -237,7 +304,7 @@ public class ChamCongPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Check-in thành công!\nHội viên: " + hoiVien.getTenHoiVien(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
                 txtMaHoiVien.setText("");
                 reload();
-                loadCurrentMembers(null);
+                loadCurrentMembers();
             } else {
                 JOptionPane.showMessageDialog(this, "Check-in thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
@@ -282,7 +349,7 @@ public class ChamCongPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Check-out thành công!\nHội viên: " + hoiVien.getTenHoiVien(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
                 txtMaHoiVien.setText("");
                 reload();
-                loadCurrentMembers(null);
+                loadCurrentMembers();
             } else {
                 JOptionPane.showMessageDialog(this, "Check-out thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
@@ -348,35 +415,6 @@ public class ChamCongPanel extends JPanel {
                 return c;
             }
         });
-    }
-
-    private void loadCurrentMembers(JTable targetTable) {
-        try {
-            List<ChamCong> currentMembers = chamCongDAO.getCurrentMembersInGym();
-            lblCurrentInGym.setText("Hiện có " + currentMembers.size() + " hội viên đang tập");
-            
-            if (targetTable != null) {
-                String[] columns = {"Mã HV", "Tên hội viên", "Giờ vào", "Thời gian tập"};
-                Object[][] data = new Object[currentMembers.size()][columns.length];
-                
-                for (int i = 0; i < currentMembers.size(); i++) {
-                    ChamCong cc = currentMembers.get(i);
-                    data[i][0] = cc.getMaHoiVien();
-                    data[i][1] = cc.getTenHoiVien();
-                    data[i][2] = cc.getGioVao().toString();
-                    
-                    // Tính thời gian tập
-                    long diffMs = System.currentTimeMillis() - cc.getGioVao().getTime();
-                    long hours = diffMs / (1000 * 60 * 60);
-                    long minutes = (diffMs % (1000 * 60 * 60)) / (1000 * 60);
-                    data[i][3] = hours + "h " + minutes + "m";
-                }
-                
-                targetTable.setModel(new javax.swing.table.DefaultTableModel(data, columns));
-            }
-        } catch (Exception ex) {
-            lblCurrentInGym.setText("Lỗi tải dữ liệu");
-        }
     }
 
     private void checkExpiryWarnings() {
