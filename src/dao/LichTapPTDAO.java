@@ -189,7 +189,7 @@ public class LichTapPTDAO {
     }
 
     // Kiểm tra chồng lịch (HLV hoặc HV) trong cùng ngày và khung giờ giao nhau
-    private boolean hasOverlap(LichTapPT lt, boolean isUpdate) {
+    public boolean hasOverlap(LichTapPT lt, boolean isUpdate) {
         String base =
             "SELECT COUNT(*) FROM LichTapPT WHERE NgayTap = ? AND (" +
             "(MaHLV = ? ) OR (MaHoiVien = ?)) AND " +

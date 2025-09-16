@@ -331,27 +331,129 @@ public class HLVPanel extends JPanel {
         String ma = txtMa.getText().trim();
         String ten = txtTen.getText().trim();
         String sdt = txtSDT.getText().trim();
+        String email = txtEmail.getText().trim();
         String luongStr = txtLuong.getText().trim();
-        if (ValidationUtil.isEmpty(ten)) { JOptionPane.showMessageDialog(this, "Tên không được để trống"); return null; }
-        if (!ValidationUtil.isEmpty(sdt) && !ValidationUtil.isValidPhone(sdt)) { JOptionPane.showMessageDialog(this, "SĐT không hợp lệ"); return null; }
+        
+        // Validation bắt buộc
+        if (ValidationUtil.isEmpty(ten)) {
+            JOptionPane.showMessageDialog(this, "❌ Tên HLV không được để trống!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtTen.requestFocus();
+            return null;
+        }
+        
+        // Validation SĐT
+        if (!ValidationUtil.isEmpty(sdt) && !ValidationUtil.isValidPhone(sdt)) {
+            JOptionPane.showMessageDialog(this, "❌ Số điện thoại không hợp lệ!\nVí dụ: 0123456789 hoặc 0987654321", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtSDT.requestFocus();
+            return null;
+        }
+        
+        // Validation Email
+        if (!ValidationUtil.isEmpty(email) && !ValidationUtil.isValidEmail(email)) {
+            JOptionPane.showMessageDialog(this, "❌ Email không hợp lệ!\nVí dụ: example@gmail.com", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtEmail.requestFocus();
+            return null;
+        }
+        
+        // Validation ngày sinh
+        Date ngaySinh = null;
+        if (!ValidationUtil.isEmpty(txtNgaySinh.getText())) {
+            try {
+                ngaySinh = parseDate(txtNgaySinh.getText());
+                // Kiểm tra ngày sinh không được trong tương lai
+                if (ngaySinh.after(new Date())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày sinh không được trong tương lai!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgaySinh.requestFocus();
+                    return null;
+                }
+                // Kiểm tra tuổi hợp lý (ít nhất 18 tuổi, tối đa 70 tuổi)
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.setTime(ngaySinh);
+                int tuoi = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) - cal.get(java.util.Calendar.YEAR);
+                if (tuoi < 18 || tuoi > 70) {
+                    JOptionPane.showMessageDialog(this, "❌ Tuổi HLV phải từ 18 đến 70 tuổi!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgaySinh.requestFocus();
+                    return null;
+                }
+            } catch (ParseException e) {
+                JOptionPane.showMessageDialog(this, "❌ Định dạng ngày sinh sai!\nVui lòng nhập theo định dạng: yyyy-MM-dd\nVí dụ: 1990-01-15", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtNgaySinh.requestFocus();
+                return null;
+            }
+        }
+        
+        // Validation ngày vào làm
+        Date ngayVaoLam = null;
+        if (!ValidationUtil.isEmpty(txtNgayVaoLam.getText())) {
+            try {
+                ngayVaoLam = parseDate(txtNgayVaoLam.getText());
+                // Ngày vào làm không được trong tương lai
+                if (ngayVaoLam.after(new Date())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày vào làm không được trong tương lai!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayVaoLam.requestFocus();
+                    return null;
+                }
+                // Ngày vào làm không được quá 50 năm trước
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.add(java.util.Calendar.YEAR, -50);
+                if (ngayVaoLam.before(cal.getTime())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày vào làm quá xa! Vui lòng kiểm tra lại.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayVaoLam.requestFocus();
+                    return null;
+                }
+            } catch (ParseException e) {
+                JOptionPane.showMessageDialog(this, "❌ Định dạng ngày vào làm sai!\nVui lòng nhập theo định dạng: yyyy-MM-dd", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtNgayVaoLam.requestFocus();
+                return null;
+            }
+        }
+        
+        // Validation lương
         BigDecimal luong = null;
         if (!ValidationUtil.isEmpty(luongStr)) {
-            try { luong = new BigDecimal(luongStr); } catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "Lương không hợp lệ"); return null; }
+            try {
+                luong = new BigDecimal(luongStr);
+                if (luong.compareTo(BigDecimal.ZERO) < 0) {
+                    JOptionPane.showMessageDialog(this, "❌ Lương không được âm!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtLuong.requestFocus();
+                    return null;
+                }
+                if (luong.compareTo(new BigDecimal("100000000")) > 0) {
+                    JOptionPane.showMessageDialog(this, "❌ Lương quá cao! Vui lòng nhập lương dưới 100 triệu VNĐ.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtLuong.requestFocus();
+                    return null;
+                }
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(this, "❌ Lương không hợp lệ!\nVui lòng nhập số nguyên hoặc thập phân\nVí dụ: 5000000 hoặc 5000000.50", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtLuong.requestFocus();
+                return null;
+            }
         }
+        
+        // Kiểm tra mã HLV trùng lặp (nếu là thêm mới)
+        if (isNew) {
+            try {
+                HuanLuyenVien existing = dao.getById(ma);
+                if (existing != null) {
+                    JOptionPane.showMessageDialog(this, "❌ Mã HLV '" + ma + "' đã tồn tại!\nVui lòng thử lại.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtMa.requestFocus();
+                    return null;
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "❌ Lỗi kiểm tra mã HLV: " + e.getMessage(), "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+        }
+        
         HuanLuyenVien hlv = new HuanLuyenVien();
         hlv.setMaHLV(ma);
         hlv.setTenHLV(ten);
         hlv.setGioiTinh((String) cbGioiTinh.getSelectedItem());
-        try {
-            hlv.setNgaySinh(parseDate(txtNgaySinh.getText()));
-            hlv.setNgayVaoLam(parseDate(txtNgayVaoLam.getText()));
-        } catch (ParseException e) {
-            JOptionPane.showMessageDialog(this, "Sai định dạng ngày (yyyy-MM-dd)");
-            return null;
-        }
+        hlv.setNgaySinh(ngaySinh);
+        hlv.setNgayVaoLam(ngayVaoLam);
         hlv.setSdt(sdt);
         hlv.setDiaChi(txtDiaChi.getText().trim());
-        hlv.setEmail(txtEmail.getText().trim());
+        hlv.setEmail(email);
         hlv.setChuyenMon(txtChuyenMon.getText().trim());
         hlv.setLuong(luong);
         hlv.setTrangThai(chkTrangThai.isSelected());

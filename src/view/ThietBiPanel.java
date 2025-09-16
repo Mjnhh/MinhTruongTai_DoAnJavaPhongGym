@@ -89,7 +89,170 @@ public class ThietBiPanel extends JPanel {
     private void clearForm(){ txtMa.setText(""); txtTen.setText(""); txtLoai.setText(""); txtTinhTrang.setText(""); txtNgayMua.setText(""); txtGiaMua.setText(""); txtNgayBaoTriCuoi.setText(""); txtNgayBaoTriTiep.setText(""); txtGhiChu.setText(""); isNew=true; }
     private void fillFormFromTable(int r){ txtMa.setText(safeString(table.getValueAt(r,0))); txtTen.setText(safeString(table.getValueAt(r,1))); txtLoai.setText(safeString(table.getValueAt(r,2))); txtTinhTrang.setText(safeString(table.getValueAt(r,3))); txtNgayMua.setText(safeDate(table.getValueAt(r,4))); txtGiaMua.setText(safeString(table.getValueAt(r,5))); txtNgayBaoTriCuoi.setText(safeDate(table.getValueAt(r,6))); txtNgayBaoTriTiep.setText(safeDate(table.getValueAt(r,7))); txtGhiChu.setText(safeString(table.getValueAt(r,8))); }
     private String safeString(Object v){ return v==null?"":String.valueOf(v);} private String safeDate(Object v){ if (v==null) return ""; if (v instanceof Date) return df.format((Date)v); return String.valueOf(v);} private Date parseDate(String s) throws ParseException{ if (s==null||s.trim().isEmpty()) return null; return df.parse(s.trim()); }
-    private ThietBi buildFromForm(){ String ma=txtMa.getText().trim(); String ten=txtTen.getText().trim(); String giaStr=txtGiaMua.getText().trim(); if (ValidationUtil.isEmpty(ten)){ JOptionPane.showMessageDialog(this,"Tên thiết bị không được để trống"); return null;} BigDecimal gia=null; if (!ValidationUtil.isEmpty(giaStr)){ try{ gia=new BigDecimal(giaStr);}catch(NumberFormatException e){ JOptionPane.showMessageDialog(this,"Giá mua không hợp lệ"); return null; } } ThietBi tb=new ThietBi(); tb.setMaThietBi(ma); tb.setTenThietBi(ten); tb.setLoaiThietBi(txtLoai.getText().trim()); tb.setTinhTrang(txtTinhTrang.getText().trim()); try{ tb.setNgayMua(parseDate(txtNgayMua.getText())); tb.setNgayBaoTriCuoi(parseDate(txtNgayBaoTriCuoi.getText())); tb.setNgayBaoTriTiep(parseDate(txtNgayBaoTriTiep.getText())); } catch(ParseException e){ JOptionPane.showMessageDialog(this,"Sai định dạng ngày (yyyy-MM-dd)"); return null;} tb.setGiaMua(gia); tb.setGhiChu(txtGhiChu.getText().trim()); return tb; }
+    private ThietBi buildFromForm() {
+        String ma = txtMa.getText().trim();
+        String ten = txtTen.getText().trim();
+        String loai = txtLoai.getText().trim();
+        String tinhTrang = txtTinhTrang.getText().trim();
+        String giaStr = txtGiaMua.getText().trim();
+        
+        // Validation bắt buộc
+        if (ValidationUtil.isEmpty(ten)) {
+            JOptionPane.showMessageDialog(this, "❌ Tên thiết bị không được để trống!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtTen.requestFocus();
+            return null;
+        }
+        
+        if (ValidationUtil.isEmpty(loai)) {
+            JOptionPane.showMessageDialog(this, "❌ Loại thiết bị không được để trống!\nVí dụ: Máy chạy bộ, Tạ tay, Xe đạp...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtLoai.requestFocus();
+            return null;
+        }
+        
+        if (ValidationUtil.isEmpty(tinhTrang)) {
+            JOptionPane.showMessageDialog(this, "❌ Tình trạng không được để trống!\nVí dụ: Tốt, Hỏng, Bảo trì", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtTinhTrang.requestFocus();
+            return null;
+        }
+        
+        // Validation tình trạng hợp lệ
+        if (!tinhTrang.matches("^(Tốt|Hỏng|Bảo trì)$")) {
+            JOptionPane.showMessageDialog(this, "❌ Tình trạng không hợp lệ!\nChỉ chấp nhận: Tốt, Hỏng, Bảo trì", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtTinhTrang.selectAll();
+            txtTinhTrang.requestFocus();
+            return null;
+        }
+        
+        // Validation giá mua
+        BigDecimal gia = null;
+        if (!ValidationUtil.isEmpty(giaStr)) {
+            try {
+                gia = new BigDecimal(giaStr);
+                if (gia.compareTo(BigDecimal.ZERO) < 0) {
+                    JOptionPane.showMessageDialog(this, "❌ Giá mua không được âm!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtGiaMua.selectAll();
+                    txtGiaMua.requestFocus();
+                    return null;
+                }
+                if (gia.compareTo(new BigDecimal("1000000000")) > 0) {
+                    JOptionPane.showMessageDialog(this, "❌ Giá mua quá cao! Vui lòng nhập giá dưới 1 tỷ VNĐ.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtGiaMua.selectAll();
+                    txtGiaMua.requestFocus();
+                    return null;
+                }
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(this, "❌ Giá mua không hợp lệ!\nVui lòng nhập số nguyên hoặc thập phân\nVí dụ: 5000000 hoặc 5000000.50", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtGiaMua.selectAll();
+                txtGiaMua.requestFocus();
+                return null;
+            }
+        }
+        
+        // Validation ngày mua
+        Date ngayMua = null;
+        if (!ValidationUtil.isEmpty(txtNgayMua.getText())) {
+            try {
+                ngayMua = parseDate(txtNgayMua.getText());
+                // Kiểm tra ngày mua không được trong tương lai
+                if (ngayMua.after(new Date())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày mua không được trong tương lai!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayMua.selectAll();
+                    txtNgayMua.requestFocus();
+                    return null;
+                }
+                // Kiểm tra ngày mua không quá xa (50 năm trước)
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.add(java.util.Calendar.YEAR, -50);
+                if (ngayMua.before(cal.getTime())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày mua quá xa! Vui lòng kiểm tra lại.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayMua.selectAll();
+                    txtNgayMua.requestFocus();
+                    return null;
+                }
+            } catch (ParseException e) {
+                JOptionPane.showMessageDialog(this, "❌ Định dạng ngày mua sai!\nVui lòng nhập theo định dạng: yyyy-MM-dd\nVí dụ: 2024-01-15", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtNgayMua.selectAll();
+                txtNgayMua.requestFocus();
+                return null;
+            }
+        }
+        
+        // Validation ngày bảo trì
+        Date ngayBaoTriCuoi = null;
+        Date ngayBaoTriTiep = null;
+        
+        if (!ValidationUtil.isEmpty(txtNgayBaoTriCuoi.getText())) {
+            try {
+                ngayBaoTriCuoi = parseDate(txtNgayBaoTriCuoi.getText());
+                if (ngayBaoTriCuoi.after(new Date())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày bảo trì cuối không được trong tương lai!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayBaoTriCuoi.selectAll();
+                    txtNgayBaoTriCuoi.requestFocus();
+                    return null;
+                }
+            } catch (ParseException e) {
+                JOptionPane.showMessageDialog(this, "❌ Định dạng ngày bảo trì cuối sai!\nVui lòng nhập theo định dạng: yyyy-MM-dd", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtNgayBaoTriCuoi.selectAll();
+                txtNgayBaoTriCuoi.requestFocus();
+                return null;
+            }
+        }
+        
+        if (!ValidationUtil.isEmpty(txtNgayBaoTriTiep.getText())) {
+            try {
+                ngayBaoTriTiep = parseDate(txtNgayBaoTriTiep.getText());
+                if (ngayBaoTriTiep.before(new Date())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày bảo trì tiếp không được trong quá khứ!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayBaoTriTiep.selectAll();
+                    txtNgayBaoTriTiep.requestFocus();
+                    return null;
+                }
+            } catch (ParseException e) {
+                JOptionPane.showMessageDialog(this, "❌ Định dạng ngày bảo trì tiếp sai!\nVui lòng nhập theo định dạng: yyyy-MM-dd", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtNgayBaoTriTiep.selectAll();
+                txtNgayBaoTriTiep.requestFocus();
+                return null;
+            }
+        }
+        
+        // Kiểm tra logic ngày bảo trì
+        if (ngayBaoTriCuoi != null && ngayBaoTriTiep != null) {
+            if (ngayBaoTriCuoi.after(ngayBaoTriTiep)) {
+                JOptionPane.showMessageDialog(this, "❌ Ngày bảo trì cuối phải trước ngày bảo trì tiếp!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtNgayBaoTriTiep.selectAll();
+                txtNgayBaoTriTiep.requestFocus();
+                return null;
+            }
+        }
+        
+        // Kiểm tra mã thiết bị trùng lặp (nếu là thêm mới)
+        if (isNew) {
+            try {
+                ThietBi existing = dao.getById(ma);
+                if (existing != null) {
+                    JOptionPane.showMessageDialog(this, "❌ Mã thiết bị '" + ma + "' đã tồn tại!\nVui lòng thử lại.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtMa.selectAll();
+                    txtMa.requestFocus();
+                    return null;
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "❌ Lỗi kiểm tra mã thiết bị: " + e.getMessage(), "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+        }
+        
+        ThietBi tb = new ThietBi();
+        tb.setMaThietBi(ma);
+        tb.setTenThietBi(ten);
+        tb.setLoaiThietBi(loai);
+        tb.setTinhTrang(tinhTrang);
+        tb.setNgayMua(ngayMua);
+        tb.setGiaMua(gia);
+        tb.setNgayBaoTriCuoi(ngayBaoTriCuoi);
+        tb.setNgayBaoTriTiep(ngayBaoTriTiep);
+        tb.setGhiChu(txtGhiChu.getText().trim());
+        return tb;
+    }
 }
 
 

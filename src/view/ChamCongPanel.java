@@ -267,7 +267,15 @@ public class ChamCongPanel extends JPanel {
     private void doCheckIn() {
         String maHoiVien = txtMaHoiVien.getText().trim().toUpperCase();
         if (ValidationUtil.isEmpty(maHoiVien)) {
-            JOptionPane.showMessageDialog(this, "Vui lòng nhập mã hội viên!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "❌ Vui lòng nhập mã hội viên!\nVí dụ: HV001, HV002...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtMaHoiVien.requestFocus();
+            return;
+        }
+
+        // Validation định dạng mã hội viên
+        if (!maHoiVien.matches("^HV\\d{3}$")) {
+            JOptionPane.showMessageDialog(this, "❌ Mã hội viên không đúng định dạng!\nVui lòng nhập theo định dạng: HV001, HV002...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtMaHoiVien.selectAll();
             txtMaHoiVien.requestFocus();
             return;
         }
@@ -276,47 +284,74 @@ public class ChamCongPanel extends JPanel {
             // Kiểm tra hội viên có tồn tại không
             HoiVien hoiVien = hoiVienDAO.getById(maHoiVien);
             if (hoiVien == null) {
-                JOptionPane.showMessageDialog(this, "Không tìm thấy hội viên với mã: " + maHoiVien, "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "❌ Không tìm thấy hội viên với mã: " + maHoiVien + "\nVui lòng kiểm tra lại mã hội viên.", "Lỗi tìm kiếm", JOptionPane.ERROR_MESSAGE);
                 txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
                 return;
             }
 
             // Kiểm tra trạng thái hội viên
             if (!hoiVien.isTrangThai()) {
-                JOptionPane.showMessageDialog(this, "Hội viên " + hoiVien.getTenHoiVien() + " đã hết hạn!", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "⚠️ Hội viên " + hoiVien.getTenHoiVien() + " đã bị vô hiệu hóa!\nVui lòng liên hệ quản trị viên.", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
                 txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
                 return;
             }
 
             // Kiểm tra đã check-in hôm nay chưa
             if (chamCongDAO.isCheckedInToday(maHoiVien)) {
                 if (!chamCongDAO.isCheckedOutToday(maHoiVien)) {
-                    JOptionPane.showMessageDialog(this, hoiVien.getTenHoiVien() + " đã check-in rồi và chưa check-out!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "ℹ️ " + hoiVien.getTenHoiVien() + " đã check-in rồi và chưa check-out!\nVui lòng check-out trước khi check-in lại.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 } else {
-                    JOptionPane.showMessageDialog(this, hoiVien.getTenHoiVien() + " đã check-in và check-out hôm nay rồi!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "ℹ️ " + hoiVien.getTenHoiVien() + " đã check-in và check-out hôm nay rồi!\nMỗi hội viên chỉ được check-in 1 lần/ngày.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 }
                 txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
+                return;
+            }
+
+            // Kiểm tra gói tập còn hạn không
+            if (hoiVien.getNgayKetThuc() != null && hoiVien.getNgayKetThuc().before(new Date())) {
+                JOptionPane.showMessageDialog(this, "⚠️ Gói tập của " + hoiVien.getTenHoiVien() + " đã hết hạn từ " + dateFormat.format(hoiVien.getNgayKetThuc()) + "!\nVui lòng gia hạn gói tập.", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
+                return;
+            }
+
+            // Kiểm tra số buổi còn lại
+            if (hoiVien.getSoBuoiConLai() <= 0) {
+                JOptionPane.showMessageDialog(this, "⚠️ " + hoiVien.getTenHoiVien() + " đã hết số buổi tập!\nSố buổi còn lại: " + hoiVien.getSoBuoiConLai() + "\nVui lòng mua thêm buổi hoặc gia hạn gói.", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
                 return;
             }
 
             // Thực hiện check-in
             if (chamCongDAO.checkIn(maHoiVien)) {
-                JOptionPane.showMessageDialog(this, "Check-in thành công!\nHội viên: " + hoiVien.getTenHoiVien(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "✅ Check-in thành công!\nHội viên: " + hoiVien.getTenHoiVien() + "\nSố buổi còn lại: " + (hoiVien.getSoBuoiConLai() - 1), "Thành công", JOptionPane.INFORMATION_MESSAGE);
                 txtMaHoiVien.setText("");
                 reload();
                 loadCurrentMembers();
             } else {
-                JOptionPane.showMessageDialog(this, "Check-in thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "❌ Check-in thất bại!\nVui lòng thử lại sau.", "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
             }
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Lỗi khi check-in: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "❌ Lỗi khi check-in: " + ex.getMessage() + "\nVui lòng thử lại sau.", "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void doCheckOut() {
         String maHoiVien = txtMaHoiVien.getText().trim().toUpperCase();
         if (ValidationUtil.isEmpty(maHoiVien)) {
-            JOptionPane.showMessageDialog(this, "Vui lòng nhập mã hội viên!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "❌ Vui lòng nhập mã hội viên!\nVí dụ: HV001, HV002...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtMaHoiVien.requestFocus();
+            return;
+        }
+
+        // Validation định dạng mã hội viên
+        if (!maHoiVien.matches("^HV\\d{3}$")) {
+            JOptionPane.showMessageDialog(this, "❌ Mã hội viên không đúng định dạng!\nVui lòng nhập theo định dạng: HV001, HV002...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtMaHoiVien.selectAll();
             txtMaHoiVien.requestFocus();
             return;
         }
@@ -325,36 +360,39 @@ public class ChamCongPanel extends JPanel {
             // Kiểm tra hội viên có tồn tại không
             HoiVien hoiVien = hoiVienDAO.getById(maHoiVien);
             if (hoiVien == null) {
-                JOptionPane.showMessageDialog(this, "Không tìm thấy hội viên với mã: " + maHoiVien, "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "❌ Không tìm thấy hội viên với mã: " + maHoiVien + "\nVui lòng kiểm tra lại mã hội viên.", "Lỗi tìm kiếm", JOptionPane.ERROR_MESSAGE);
                 txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
                 return;
             }
 
             // Kiểm tra đã check-in hôm nay chưa
             if (!chamCongDAO.isCheckedInToday(maHoiVien)) {
-                JOptionPane.showMessageDialog(this, hoiVien.getTenHoiVien() + " chưa check-in hôm nay!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "⚠️ " + hoiVien.getTenHoiVien() + " chưa check-in hôm nay!\nVui lòng check-in trước khi check-out.", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
                 txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
                 return;
             }
 
             // Kiểm tra đã check-out chưa
             if (chamCongDAO.isCheckedOutToday(maHoiVien)) {
-                JOptionPane.showMessageDialog(this, hoiVien.getTenHoiVien() + " đã check-out rồi!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "ℹ️ " + hoiVien.getTenHoiVien() + " đã check-out rồi!\nMỗi hội viên chỉ được check-out 1 lần/ngày.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
                 return;
             }
 
             // Thực hiện check-out
             if (chamCongDAO.checkOut(maHoiVien)) {
-                JOptionPane.showMessageDialog(this, "Check-out thành công!\nHội viên: " + hoiVien.getTenHoiVien(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "✅ Check-out thành công!\nHội viên: " + hoiVien.getTenHoiVien() + "\nCảm ơn bạn đã tập luyện!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
                 txtMaHoiVien.setText("");
                 reload();
                 loadCurrentMembers();
             } else {
-                JOptionPane.showMessageDialog(this, "Check-out thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "❌ Check-out thất bại!\nVui lòng thử lại sau.", "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
             }
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Lỗi khi check-out: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "❌ Lỗi khi check-out: " + ex.getMessage() + "\nVui lòng thử lại sau.", "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -474,5 +512,9 @@ public class ChamCongPanel extends JPanel {
         }
     }
 }
+
+
+
+
 
 

@@ -3,6 +3,7 @@ package view;
 import dao.ThuPhiDAO;
 import model.ThuPhi;
 import util.ValidationUtil;
+import dao.HoiVienDAO;
 
 import javax.swing.*;
 import java.awt.*;
@@ -185,7 +186,154 @@ public class ThuPhiPanel extends JPanel {
     private void clearForm(){ txtMaPhieu.setText(""); txtMaHoiVien.setText(""); txtLoaiPhi.setText(""); txtSoTien.setText(""); txtNgayThu.setText(""); txtPTTT.setText(""); txtNguoiThu.setText(""); txtGhiChu.setText(""); }
     private void fillFormFromTable(int r){ txtMaPhieu.setText(safe(table.getValueAt(r,0))); txtMaHoiVien.setText(safe(table.getValueAt(r,1))); txtLoaiPhi.setText(safe(table.getValueAt(r,3))); txtSoTien.setText(safe(table.getValueAt(r,4))); txtNgayThu.setText(safeDate(table.getValueAt(r,5))); txtPTTT.setText(safe(table.getValueAt(r,6))); txtNguoiThu.setText(safe(table.getValueAt(r,7))); txtGhiChu.setText(safe(table.getValueAt(r,8))); }
     private String safe(Object v){ return v==null?"":String.valueOf(v);} private String safeDate(Object v){ if(v==null) return ""; if(v instanceof Date) return df.format((Date)v); return String.valueOf(v);} private Date parseDate(String s) throws ParseException{ if(s==null||s.trim().isEmpty()) return null; return df.parse(s.trim()); }
-    private ThuPhi buildFromForm(){ String ma=txtMaPhieu.getText().trim(); String hv=txtMaHoiVien.getText().trim(); String loai=txtLoaiPhi.getText().trim(); String soStr=txtSoTien.getText().trim(); String pttt=txtPTTT.getText().trim(); String nguoi=txtNguoiThu.getText().trim(); BigDecimal soTien=null; try{ if(!ValidationUtil.isEmpty(soStr)) soTien=new BigDecimal(soStr); }catch(NumberFormatException e){ JOptionPane.showMessageDialog(this,"Số tiền không hợp lệ"); return null; } ThuPhi tp=new ThuPhi(); tp.setMaPhieu(ma); tp.setMaHoiVien(ValidationUtil.isEmpty(hv)?null:hv); tp.setLoaiPhi(loai); tp.setSoTien(soTien); try{ tp.setNgayThu(parseDate(txtNgayThu.getText())); }catch(ParseException e){ JOptionPane.showMessageDialog(this,"Sai định dạng ngày (yyyy-MM-dd)"); return null; } tp.setPhuongThucTT(pttt); tp.setNguoiThu(nguoi); tp.setGhiChu(txtGhiChu.getText().trim()); return tp; }
+    private ThuPhi buildFromForm() {
+        String ma = txtMaPhieu.getText().trim();
+        String hv = txtMaHoiVien.getText().trim();
+        String loai = txtLoaiPhi.getText().trim();
+        String soStr = txtSoTien.getText().trim();
+        String pttt = txtPTTT.getText().trim();
+        String nguoi = txtNguoiThu.getText().trim();
+        
+        // Validation bắt buộc
+        if (ValidationUtil.isEmpty(loai)) {
+            JOptionPane.showMessageDialog(this, "❌ Loại phí không được để trống!\nVí dụ: Gói tập, Huấn luyện cá nhân, Phí khác...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtLoaiPhi.requestFocus();
+            return null;
+        }
+        
+        if (ValidationUtil.isEmpty(soStr)) {
+            JOptionPane.showMessageDialog(this, "❌ Số tiền không được để trống!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtSoTien.requestFocus();
+            return null;
+        }
+        
+        if (ValidationUtil.isEmpty(pttt)) {
+            JOptionPane.showMessageDialog(this, "❌ Phương thức thanh toán không được để trống!\nVí dụ: Tiền mặt, Chuyển khoản, Thẻ...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtPTTT.requestFocus();
+            return null;
+        }
+        
+        if (ValidationUtil.isEmpty(nguoi)) {
+            JOptionPane.showMessageDialog(this, "❌ Người thu không được để trống!\nVí dụ: Admin, Nhân viên, HLV...", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtNguoiThu.requestFocus();
+            return null;
+        }
+        
+        // Validation số tiền
+        BigDecimal soTien = null;
+        try {
+            soTien = new BigDecimal(soStr);
+            if (soTien.compareTo(BigDecimal.ZERO) <= 0) {
+                JOptionPane.showMessageDialog(this, "❌ Số tiền phải lớn hơn 0 VNĐ!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtSoTien.selectAll();
+                txtSoTien.requestFocus();
+                return null;
+            }
+            if (soTien.compareTo(new BigDecimal("1000000000")) > 0) {
+                JOptionPane.showMessageDialog(this, "❌ Số tiền quá lớn! Vui lòng nhập số tiền dưới 1 tỷ VNĐ.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtSoTien.selectAll();
+                txtSoTien.requestFocus();
+                return null;
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "❌ Số tiền không hợp lệ!\nVui lòng nhập số nguyên hoặc thập phân\nVí dụ: 500000 hoặc 500000.50", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtSoTien.selectAll();
+            txtSoTien.requestFocus();
+            return null;
+        }
+        
+        // Validation ngày thu
+        Date ngayThu = null;
+        if (!ValidationUtil.isEmpty(txtNgayThu.getText())) {
+            try {
+                ngayThu = parseDate(txtNgayThu.getText());
+                // Kiểm tra ngày thu không được trong tương lai
+                if (ngayThu.after(new Date())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày thu không được trong tương lai!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayThu.selectAll();
+                    txtNgayThu.requestFocus();
+                    return null;
+                }
+                // Kiểm tra ngày thu không quá xa (10 năm trước)
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                cal.add(java.util.Calendar.YEAR, -10);
+                if (ngayThu.before(cal.getTime())) {
+                    JOptionPane.showMessageDialog(this, "❌ Ngày thu quá xa! Vui lòng kiểm tra lại.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtNgayThu.selectAll();
+                    txtNgayThu.requestFocus();
+                    return null;
+                }
+            } catch (ParseException e) {
+                JOptionPane.showMessageDialog(this, "❌ Định dạng ngày thu sai!\nVui lòng nhập theo định dạng: yyyy-MM-dd\nVí dụ: 2024-01-15", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtNgayThu.selectAll();
+                txtNgayThu.requestFocus();
+                return null;
+            }
+        } else {
+            // Nếu không nhập ngày thu, mặc định là hôm nay
+            ngayThu = new Date();
+        }
+        
+        // Validation mã hội viên (nếu có)
+        if (!ValidationUtil.isEmpty(hv)) {
+            // Validation định dạng mã hội viên
+            if (!hv.matches("^HV\\d{3}$")) {
+                JOptionPane.showMessageDialog(this, "❌ Mã hội viên không đúng định dạng!\nVui lòng nhập theo định dạng: HV001, HV002...\nHoặc để trống nếu không có hội viên.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                txtMaHoiVien.selectAll();
+                txtMaHoiVien.requestFocus();
+                return null;
+            }
+            
+            // Kiểm tra hội viên có tồn tại không
+            try {
+                HoiVienDAO hvDAO = new HoiVienDAO();
+                if (hvDAO.getById(hv) == null) {
+                    JOptionPane.showMessageDialog(this, "❌ Mã hội viên '" + hv + "' không tồn tại!\nVui lòng kiểm tra lại hoặc để trống.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtMaHoiVien.selectAll();
+                    txtMaHoiVien.requestFocus();
+                    return null;
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "❌ Lỗi kiểm tra hội viên: " + e.getMessage(), "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+        }
+        
+        // Validation phương thức thanh toán
+        if (!pttt.matches("^(Tiền mặt|Chuyển khoản|Thẻ|Khác)$")) {
+            JOptionPane.showMessageDialog(this, "❌ Phương thức thanh toán không hợp lệ!\nChỉ chấp nhận: Tiền mặt, Chuyển khoản, Thẻ, Khác", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtPTTT.selectAll();
+            txtPTTT.requestFocus();
+            return null;
+        }
+        
+        // Kiểm tra mã phiếu trùng lặp (nếu là thêm mới)
+        if (isNew) {
+            try {
+                ThuPhi existing = dao.getById(ma);
+                if (existing != null) {
+                    JOptionPane.showMessageDialog(this, "❌ Mã phiếu '" + ma + "' đã tồn tại!\nVui lòng thử lại.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtMaPhieu.selectAll();
+                    txtMaPhieu.requestFocus();
+                    return null;
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "❌ Lỗi kiểm tra mã phiếu: " + e.getMessage(), "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+        }
+        
+        ThuPhi tp = new ThuPhi();
+        tp.setMaPhieu(ma);
+        tp.setMaHoiVien(ValidationUtil.isEmpty(hv) ? null : hv);
+        tp.setLoaiPhi(loai);
+        tp.setSoTien(soTien);
+        tp.setNgayThu(ngayThu);
+        tp.setPhuongThucTT(pttt);
+        tp.setNguoiThu(nguoi);
+        tp.setGhiChu(txtGhiChu.getText().trim());
+        return tp;
+    }
 }
 
 

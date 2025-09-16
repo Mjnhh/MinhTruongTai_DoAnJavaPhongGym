@@ -295,56 +295,122 @@ public class GoiTapPanel extends JPanel {
         String thoiHanStr = txtThoiHan.getText().trim();
         String soBuoiStr = txtSoBuoi.getText().trim();
 
-        // Validation
+        // Validation bắt buộc
         if (ValidationUtil.isEmpty(ten)) {
-            JOptionPane.showMessageDialog(this, "Tên gói tập không được để trống");
+            JOptionPane.showMessageDialog(this, "❌ Tên gói tập không được để trống!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtTen.requestFocus();
             return null;
         }
+        
         if (ValidationUtil.isEmpty(giaTienStr)) {
-            JOptionPane.showMessageDialog(this, "Giá tiền không được để trống");
+            JOptionPane.showMessageDialog(this, "❌ Giá tiền không được để trống!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtGiaTien.requestFocus();
             return null;
         }
+        
         if (ValidationUtil.isEmpty(thoiHanStr)) {
-            JOptionPane.showMessageDialog(this, "Thời hạn không được để trống");
+            JOptionPane.showMessageDialog(this, "❌ Thời hạn không được để trống!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtThoiHan.requestFocus();
             return null;
         }
+        
         if (ValidationUtil.isEmpty(soBuoiStr)) {
-            JOptionPane.showMessageDialog(this, "Số buổi không được để trống");
+            JOptionPane.showMessageDialog(this, "❌ Số buổi không được để trống!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtSoBuoi.requestFocus();
             return null;
         }
 
+        // Validation số liệu
+        BigDecimal giaTien;
+        int thoiHan;
+        int soBuoi;
+        
         try {
-            BigDecimal giaTien = new BigDecimal(giaTienStr);
-            int thoiHan = Integer.parseInt(thoiHanStr);
-            int soBuoi = Integer.parseInt(soBuoiStr);
-
-            if (giaTien.compareTo(BigDecimal.ZERO) <= 0) {
-                JOptionPane.showMessageDialog(this, "Giá tiền phải lớn hơn 0");
-                return null;
-            }
-            if (thoiHan <= 0) {
-                JOptionPane.showMessageDialog(this, "Thời hạn phải lớn hơn 0");
-                return null;
-            }
-            if (soBuoi <= 0) {
-                JOptionPane.showMessageDialog(this, "Số buổi phải lớn hơn 0");
-                return null;
-            }
-
-            GoiTap gt = new GoiTap();
-            gt.setMaGoiTap(ma);
-            gt.setTenGoiTap(ten);
-            gt.setMoTa(txtMoTa.getText().trim());
-            gt.setGiaTien(giaTien);
-            gt.setThoiHan(thoiHan);
-            gt.setSoBuoi(soBuoi);
-            gt.setTrangThai(chkTrangThai.isSelected());
-
-            return gt;
+            giaTien = new BigDecimal(giaTienStr);
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Giá tiền, thời hạn và số buổi phải là số hợp lệ");
+            JOptionPane.showMessageDialog(this, "❌ Giá tiền không hợp lệ!\nVui lòng nhập số nguyên hoặc thập phân\nVí dụ: 500000 hoặc 500000.50", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtGiaTien.requestFocus();
             return null;
         }
+        
+        try {
+            thoiHan = Integer.parseInt(thoiHanStr);
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "❌ Thời hạn phải là số nguyên!\nVí dụ: 1, 3, 6, 12", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtThoiHan.requestFocus();
+            return null;
+        }
+        
+        try {
+            soBuoi = Integer.parseInt(soBuoiStr);
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "❌ Số buổi phải là số nguyên!\nVí dụ: 10, 20, 30", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtSoBuoi.requestFocus();
+            return null;
+        }
+
+        // Validation logic
+        if (giaTien.compareTo(BigDecimal.ZERO) <= 0) {
+            JOptionPane.showMessageDialog(this, "❌ Giá tiền phải lớn hơn 0 VNĐ!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtGiaTien.requestFocus();
+            return null;
+        }
+        
+        if (giaTien.compareTo(new BigDecimal("1000000000")) > 0) {
+            JOptionPane.showMessageDialog(this, "❌ Giá tiền quá lớn! Vui lòng nhập giá dưới 1 tỷ VNĐ.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtGiaTien.requestFocus();
+            return null;
+        }
+        
+        if (thoiHan <= 0) {
+            JOptionPane.showMessageDialog(this, "❌ Thời hạn phải lớn hơn 0 tháng!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtThoiHan.requestFocus();
+            return null;
+        }
+        
+        if (thoiHan > 60) {
+            JOptionPane.showMessageDialog(this, "❌ Thời hạn quá dài! Vui lòng nhập thời hạn dưới 60 tháng.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtThoiHan.requestFocus();
+            return null;
+        }
+        
+        if (soBuoi <= 0) {
+            JOptionPane.showMessageDialog(this, "❌ Số buổi phải lớn hơn 0!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtSoBuoi.requestFocus();
+            return null;
+        }
+        
+        if (soBuoi > 1000) {
+            JOptionPane.showMessageDialog(this, "❌ Số buổi quá nhiều! Vui lòng nhập số buổi dưới 1000.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            txtSoBuoi.requestFocus();
+            return null;
+        }
+        
+        // Kiểm tra tên gói tập trùng lặp (nếu là thêm mới)
+        if (isNew) {
+            try {
+                GoiTap existing = goiTapDAO.getById(ma);
+                if (existing != null) {
+                    JOptionPane.showMessageDialog(this, "❌ Mã gói tập '" + ma + "' đã tồn tại!\nVui lòng thử lại.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+                    txtMa.requestFocus();
+                    return null;
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "❌ Lỗi kiểm tra mã gói tập: " + e.getMessage(), "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+        }
+
+        GoiTap gt = new GoiTap();
+        gt.setMaGoiTap(ma);
+        gt.setTenGoiTap(ten);
+        gt.setMoTa(txtMoTa.getText().trim());
+        gt.setGiaTien(giaTien);
+        gt.setThoiHan(thoiHan);
+        gt.setSoBuoi(soBuoi);
+        gt.setTrangThai(chkTrangThai.isSelected());
+
+        return gt;
     }
 }
 
