@@ -36,6 +36,7 @@ public class HoiVienPanel extends JPanel {
     private JButton btnCancel;
     private JCheckBox chkActiveOnly;
     private JButton btnRenew;
+    private JButton btnHistory;
     private JCheckBox chkAutoInvoice;
 
     // Form nhập liệu
@@ -47,10 +48,10 @@ public class HoiVienPanel extends JPanel {
     private JTextField txtDiaChi;
     private JTextField txtEmail;
     private JTextField txtNgayDangKy;
-    private JTextField txtMaGoiTap;
+    private JComboBox<GoiTap> cbGoiTap;
     private JTextField txtNgayBatDau;
     private JTextField txtNgayKetThuc;
-    private JTextField txtMaHLV;
+    private JComboBox<HuanLuyenVien> cbHLV;
     private JCheckBox chkTrangThai;
     private JTextField txtSoBuoiConLai;
 
@@ -83,7 +84,9 @@ public class HoiVienPanel extends JPanel {
         actionPanel.add(btnSave);
         actionPanel.add(btnCancel);
         btnRenew = new JButton("Gia hạn gói");
+        btnHistory = new JButton("Lịch sử gói");
         actionPanel.add(btnRenew);
+        actionPanel.add(btnHistory);
         chkAutoInvoice = new JCheckBox("Tạo hóa đơn khi lưu", true);
         actionPanel.add(chkAutoInvoice);
         top.add(actionPanel, BorderLayout.WEST);
@@ -105,10 +108,10 @@ public class HoiVienPanel extends JPanel {
         txtDiaChi = new JTextField();
         txtEmail = new JTextField();
         txtNgayDangKy = new JTextField();
-        txtMaGoiTap = new JTextField();
+        cbGoiTap = new JComboBox<>();
         txtNgayBatDau = new JTextField();
         txtNgayKetThuc = new JTextField();
-        txtMaHLV = new JTextField();
+        cbHLV = new JComboBox<>();
         chkTrangThai = new JCheckBox("Hoạt động");
         txtSoBuoiConLai = new JTextField();
 
@@ -128,14 +131,14 @@ public class HoiVienPanel extends JPanel {
         form.add(txtEmail);
         form.add(new JLabel("Ngày đăng ký (yyyy-MM-dd)"));
         form.add(txtNgayDangKy);
-        form.add(new JLabel("Mã gói tập"));
-        form.add(txtMaGoiTap);
+        form.add(new JLabel("Gói tập"));
+        form.add(cbGoiTap);
         form.add(new JLabel("Ngày bắt đầu (yyyy-MM-dd)"));
         form.add(txtNgayBatDau);
         form.add(new JLabel("Ngày kết thúc (yyyy-MM-dd)"));
         form.add(txtNgayKetThuc);
-        form.add(new JLabel("Mã HLV"));
-        form.add(txtMaHLV);
+        form.add(new JLabel("HLV"));
+        form.add(cbHLV);
         form.add(new JLabel("Trạng thái"));
         form.add(chkTrangThai);
         form.add(new JLabel("Số buổi còn lại"));
@@ -151,6 +154,8 @@ public class HoiVienPanel extends JPanel {
         btnSave.addActionListener(e -> onSave());
         btnCancel.addActionListener(e -> onCancel());
         btnRenew.addActionListener(e -> onRenew());
+        btnHistory.addActionListener(e -> onHistory());
+        chkActiveOnly.addActionListener(e -> reload());
 
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -161,12 +166,18 @@ public class HoiVienPanel extends JPanel {
         });
 
         setEditing(false);
+        loadHLVCombo();
+        loadGoiTapCombo();
         reload();
     }
 
     private void reload() {
         String[] columns = {"MaHoiVien", "TenHoiVien", "GioiTinh", "NgaySinh", "SDT", "DiaChi", "Email", "NgayDangKy", "MaGoiTap", "NgayBatDau", "NgayKetThuc", "MaHLV", "TrangThai", "SoBuoiConLai"};
         try {
+            // Refresh danh sách gói tập cho combobox mỗi lần tải lại
+            loadGoiTapCombo();
+            // Refresh danh sách HLV đang hoạt động mỗi lần tải lại
+            loadHLVCombo();
             List<HoiVien> list = hoiVienDAO.getAll();
             if (chkActiveOnly.isSelected()) {
                 list = list.stream().filter(HoiVien::isTrangThai).toList();
@@ -209,7 +220,7 @@ public class HoiVienPanel extends JPanel {
             data[i][9] = hv.getNgayBatDau();
             data[i][10] = hv.getNgayKetThuc();
             data[i][11] = hv.getMaHLV();
-            data[i][12] = hv.isTrangThai();
+            data[i][12] = hv.isTrangThai() ? "Hoạt động" : "Hết hạn";
             data[i][13] = hv.getSoBuoiConLai();
         }
         table.setModel(new javax.swing.table.DefaultTableModel(data, columns));
@@ -222,6 +233,8 @@ public class HoiVienPanel extends JPanel {
         txtNgayDangKy.setText(df.format(new Date()));
         chkTrangThai.setSelected(true);
         isNew = true;
+        loadGoiTapCombo();
+        loadHLVCombo();
         setEditing(true);
     }
 
@@ -231,6 +244,9 @@ public class HoiVienPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Chọn một dòng để sửa.");
             return;
         }
+        // Load danh sách trước rồi mới bind selection từ bảng
+        loadGoiTapCombo();
+        loadHLVCombo();
         fillFormFromTable(row);
         isNew = false;
         setEditing(true);
@@ -322,10 +338,10 @@ public class HoiVienPanel extends JPanel {
         txtDiaChi.setEnabled(editing);
         txtEmail.setEnabled(editing);
         txtNgayDangKy.setEnabled(editing);
-        txtMaGoiTap.setEnabled(editing);
+        cbGoiTap.setEnabled(editing);
         txtNgayBatDau.setEnabled(editing);
         txtNgayKetThuc.setEnabled(editing);
-        txtMaHLV.setEnabled(editing);
+        cbHLV.setEnabled(editing);
         chkTrangThai.setEnabled(editing);
         txtSoBuoiConLai.setEnabled(editing);
     }
@@ -339,10 +355,10 @@ public class HoiVienPanel extends JPanel {
         txtDiaChi.setText("");
         txtEmail.setText("");
         txtNgayDangKy.setText("");
-        txtMaGoiTap.setText("");
         txtNgayBatDau.setText("");
         txtNgayKetThuc.setText("");
-        txtMaHLV.setText("");
+        if (cbHLV.getItemCount() > 0) cbHLV.setSelectedIndex(-1);
+        if (cbGoiTap.getItemCount() > 0) cbGoiTap.setSelectedIndex(-1);
         chkTrangThai.setSelected(false);
         txtSoBuoiConLai.setText("");
     }
@@ -357,12 +373,12 @@ public class HoiVienPanel extends JPanel {
         txtDiaChi.setText(safeString(table.getValueAt(row, 5)));
         txtEmail.setText(safeString(table.getValueAt(row, 6)));
         txtNgayDangKy.setText(safeFormatDate(table.getValueAt(row, 7)));
-        txtMaGoiTap.setText(safeString(table.getValueAt(row, 8)));
+        selectGoiTapById(safeString(table.getValueAt(row, 8)));
         txtNgayBatDau.setText(safeFormatDate(table.getValueAt(row, 9)));
         txtNgayKetThuc.setText(safeFormatDate(table.getValueAt(row, 10)));
-        txtMaHLV.setText(safeString(table.getValueAt(row, 11)));
+        selectHLVById(safeString(table.getValueAt(row, 11)));
         Object st = table.getValueAt(row, 12);
-        chkTrangThai.setSelected(st instanceof Boolean ? (Boolean) st : "true".equalsIgnoreCase(String.valueOf(st)));
+        chkTrangThai.setSelected("Hoạt động".equalsIgnoreCase(String.valueOf(st)));
         txtSoBuoiConLai.setText(safeString(table.getValueAt(row, 13)));
     }
 
@@ -386,8 +402,10 @@ public class HoiVienPanel extends JPanel {
         String ten = txtTen.getText().trim();
         String sdt = txtSDT.getText().trim();
         String email = txtEmail.getText().trim();
-        String maGoi = txtMaGoiTap.getText() != null ? txtMaGoiTap.getText().trim() : "";
-        String maHlv = txtMaHLV.getText() != null ? txtMaHLV.getText().trim() : "";
+        GoiTap selGoi = (GoiTap) cbGoiTap.getSelectedItem();
+        String maGoi = selGoi != null ? selGoi.getMaGoiTap() : "";
+        HuanLuyenVien selHLV = (HuanLuyenVien) cbHLV.getSelectedItem();
+        String maHlv = selHLV != null ? selHLV.getMaHLV() : "";
         
         // Validation bắt buộc
         if (ValidationUtil.isEmpty(ten)) {
@@ -511,7 +529,7 @@ public class HoiVienPanel extends JPanel {
                 GoiTap gt = goiTapDAO.getById(maGoi);
                 if (gt == null) {
                     JOptionPane.showMessageDialog(this, "❌ Mã gói tập '" + maGoi + "' không tồn tại!\nVui lòng kiểm tra lại hoặc để trống.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
-                    txtMaGoiTap.requestFocus();
+                    cbGoiTap.requestFocus();
                     return null;
                 }
             } catch (Exception e) {
@@ -526,7 +544,7 @@ public class HoiVienPanel extends JPanel {
                 HuanLuyenVien hlv = new HuanLuyenVienDAO().getById(maHlv);
                 if (hlv == null) {
                     JOptionPane.showMessageDialog(this, "❌ Mã HLV '" + maHlv + "' không tồn tại!\nVui lòng kiểm tra lại hoặc để trống.", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
-                    txtMaHLV.requestFocus();
+                    cbHLV.requestFocus();
                     return null;
                 }
             } catch (Exception e) {
@@ -553,6 +571,53 @@ public class HoiVienPanel extends JPanel {
         hv.setSoBuoiConLai(soBuoiConLai);
         
         return hv;
+    }
+
+    private void loadHLVCombo() {
+        try {
+            cbHLV.removeAllItems();
+            List<HuanLuyenVien> active = new HuanLuyenVienDAO().getActive();
+            for (HuanLuyenVien h : active) {
+                cbHLV.addItem(h);
+            }
+            cbHLV.setSelectedIndex(-1);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void loadGoiTapCombo() {
+        try {
+            cbGoiTap.removeAllItems();
+            List<GoiTap> list = goiTapDAO.getActive();
+            for (GoiTap g : list) cbGoiTap.addItem(g);
+            cbGoiTap.setSelectedIndex(-1);
+        } catch (Exception ignored) {}
+    }
+
+    private void selectHLVById(String maHLV) {
+        if (maHLV == null || maHLV.isEmpty()) { cbHLV.setSelectedIndex(-1); return; }
+        ComboBoxModel<HuanLuyenVien> model = cbHLV.getModel();
+        for (int i = 0; i < model.getSize(); i++) {
+            HuanLuyenVien item = model.getElementAt(i);
+            if (maHLV.equalsIgnoreCase(item.getMaHLV())) {
+                cbHLV.setSelectedIndex(i);
+                return;
+            }
+        }
+        cbHLV.setSelectedIndex(-1);
+    }
+
+    private void selectGoiTapById(String maGoi) {
+        if (maGoi == null || maGoi.isEmpty()) { cbGoiTap.setSelectedIndex(-1); return; }
+        ComboBoxModel<GoiTap> model = cbGoiTap.getModel();
+        for (int i = 0; i < model.getSize(); i++) {
+            GoiTap item = model.getElementAt(i);
+            if (maGoi.equalsIgnoreCase(item.getMaGoiTap())) {
+                cbGoiTap.setSelectedIndex(i);
+                return;
+            }
+        }
+        cbGoiTap.setSelectedIndex(-1);
     }
 
     // Auto-calc helpers
@@ -634,6 +699,32 @@ public class HoiVienPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Đã gia hạn gói cho " + hv.getTenHoiVien());
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Lỗi gia hạn: " + ex.getMessage());
+        }
+    }
+
+    // Xem lịch sử đăng ký/gia hạn gói của hội viên
+    private void onHistory() {
+        int row = table.getSelectedRow();
+        if (row < 0) { JOptionPane.showMessageDialog(this, "Chọn một hội viên để xem lịch sử."); return; }
+        String ma = String.valueOf(table.getValueAt(row, 0));
+        try {
+            List<ThuPhi> list = thuPhiDAO.getPackageHistoryByMember(ma);
+            String[] cols = {"Mã phiếu", "Ngày thu", "Loại phí", "Số tiền", "Ghi chú"};
+            Object[][] data = new Object[list.size()][cols.length];
+            for (int i = 0; i < list.size(); i++) {
+                ThuPhi tp = list.get(i);
+                data[i][0] = tp.getMaPhieu();
+                data[i][1] = tp.getNgayThu();
+                data[i][2] = tp.getLoaiPhi();
+                data[i][3] = tp.getSoTien();
+                data[i][4] = tp.getGhiChu();
+            }
+            JTable jt = new JTable(new javax.swing.table.DefaultTableModel(data, cols));
+            JScrollPane sp = new JScrollPane(jt);
+            sp.setPreferredSize(new java.awt.Dimension(600, 300));
+            JOptionPane.showMessageDialog(this, sp, "Lịch sử gói - " + ma, JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Lỗi xem lịch sử: " + ex.getMessage());
         }
     }
 }

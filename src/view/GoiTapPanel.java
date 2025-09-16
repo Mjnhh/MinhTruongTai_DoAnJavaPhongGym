@@ -247,7 +247,7 @@ public class GoiTapPanel extends JPanel {
         btnSearch.setEnabled(!editing);
         btnRefresh.setEnabled(!editing);
 
-        txtMa.setEnabled(false); // Mã không cho sửa
+        txtMa.setEnabled(editing && isNew); // Cho sửa mã khi thêm mới
         txtTen.setEnabled(editing);
         txtMoTa.setEnabled(editing);
         txtGiaTien.setEnabled(editing);

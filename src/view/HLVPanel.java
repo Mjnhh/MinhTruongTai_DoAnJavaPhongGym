@@ -148,7 +148,7 @@ public class HLVPanel extends JPanel {
                 data[i][7] = x.getChuyenMon();
                 data[i][8] = x.getLuong();
                 data[i][9] = x.getNgayVaoLam();
-                data[i][10] = x.isTrangThai();
+                data[i][10] = x.isTrangThai() ? "Đang làm việc" : "Nghỉ việc";
             }
             table.setModel(new javax.swing.table.DefaultTableModel(data, cols));
         } catch (Exception ex) {
@@ -178,7 +178,7 @@ public class HLVPanel extends JPanel {
                 data[i][7] = x.getChuyenMon();
                 data[i][8] = x.getLuong();
                 data[i][9] = x.getNgayVaoLam();
-                data[i][10] = x.isTrangThai();
+                data[i][10] = x.isTrangThai() ? "Đang làm việc" : "Nghỉ việc";
             }
             table.setModel(new javax.swing.table.DefaultTableModel(data, cols));
         } catch (Exception ex) {
@@ -286,7 +286,7 @@ public class HLVPanel extends JPanel {
         txtLuong.setText(safeString(table.getValueAt(row, 8)));
         txtNgayVaoLam.setText(safeDate(table.getValueAt(row, 9)));
         Object st = table.getValueAt(row, 10);
-        chkTrangThai.setSelected(st instanceof Boolean ? (Boolean) st : "true".equalsIgnoreCase(String.valueOf(st)));
+        chkTrangThai.setSelected("Đang làm việc".equalsIgnoreCase(String.valueOf(st)));
     }
 
     private void onAssignMember() {

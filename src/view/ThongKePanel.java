@@ -84,6 +84,9 @@ public class ThongKePanel extends JPanel {
 
         // Load initial
         btnRefresh.addActionListener(e -> reload((Integer) cbMonth.getSelectedItem(), (Integer) cbYear.getSelectedItem()));
+        // Tự động tải lại khi thay đổi Tháng/Năm
+        cbMonth.addActionListener(e -> reload((Integer) cbMonth.getSelectedItem(), (Integer) cbYear.getSelectedItem()));
+        cbYear.addActionListener(e -> reload((Integer) cbMonth.getSelectedItem(), (Integer) cbYear.getSelectedItem()));
         reload(java.time.LocalDate.now().getMonthValue(), currentYear);
     }
 

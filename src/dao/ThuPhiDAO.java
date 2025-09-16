@@ -142,6 +142,28 @@ public class ThuPhiDAO {
         
         return list;
     }
+
+    // Lịch sử đăng ký/gia hạn gói của hội viên (LoạiPhi='Gói tập')
+    public List<ThuPhi> getPackageHistoryByMember(String maHoiVien) {
+        List<ThuPhi> list = new ArrayList<>();
+        String sql = "SELECT tp.*, hv.TenHoiVien FROM ThuPhi tp " +
+                     "INNER JOIN HoiVien hv ON tp.MaHoiVien = hv.MaHoiVien " +
+                     "WHERE tp.MaHoiVien = ? AND tp.LoaiPhi = N'Gói tập' " +
+                     "ORDER BY tp.NgayThu DESC, tp.MaPhieu DESC";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, maHoiVien);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ThuPhi thuPhi = createThuPhiFromResultSet(rs);
+                    list.add(thuPhi);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Lỗi khi lấy lịch sử gói tập: " + e.getMessage());
+        }
+        return list;
+    }
     
     // Doanh thu theo ngày
     public BigDecimal getRevenueByDate(Date ngay) {

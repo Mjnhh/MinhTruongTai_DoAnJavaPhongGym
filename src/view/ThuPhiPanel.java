@@ -1,6 +1,8 @@
 package view;
 
 import dao.ThuPhiDAO;
+import dao.GoiTapDAO;
+import model.GoiTap;
 import model.ThuPhi;
 import util.ValidationUtil;
 import dao.HoiVienDAO;
@@ -28,6 +30,7 @@ public class ThuPhiPanel extends JPanel {
 
     // Form
     private JTextField txtMaPhieu, txtMaHoiVien, txtLoaiPhi, txtSoTien, txtNgayThu, txtPTTT, txtNguoiThu;
+    private JComboBox<GoiTap> cbGoiTap;
     private JTextArea txtGhiChu;
 
     private final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
@@ -48,11 +51,12 @@ public class ThuPhiPanel extends JPanel {
 
         table = new JTable(); add(new JScrollPane(table), BorderLayout.CENTER);
 
-        JPanel form = new JPanel(new GridLayout(0, 2, 8, 6)); form.setBorder(BorderFactory.createTitledBorder("Phiếu thu")); form.setPreferredSize(new Dimension(380, 0));
-        txtMaPhieu=new JTextField(); txtMaHoiVien=new JTextField(); txtLoaiPhi=new JTextField(); txtSoTien=new JTextField(); txtNgayThu=new JTextField(); txtPTTT=new JTextField(); txtNguoiThu=new JTextField(); txtGhiChu=new JTextArea(3,20); txtGhiChu.setLineWrap(true); txtGhiChu.setWrapStyleWord(true);
+        JPanel form = new JPanel(new GridLayout(0, 2, 8, 6)); form.setBorder(BorderFactory.createTitledBorder("Phiếu thu")); form.setPreferredSize(new Dimension(420, 0));
+        txtMaPhieu=new JTextField(); txtMaHoiVien=new JTextField(); txtLoaiPhi=new JTextField(); txtSoTien=new JTextField(); txtNgayThu=new JTextField(); txtPTTT=new JTextField(); txtNguoiThu=new JTextField(); txtGhiChu=new JTextArea(3,20); txtGhiChu.setLineWrap(true); txtGhiChu.setWrapStyleWord(true); cbGoiTap = new JComboBox<>();
         form.add(new JLabel("Mã phiếu (vd: TP001)")); form.add(txtMaPhieu);
         form.add(new JLabel("Mã hội viên")); form.add(txtMaHoiVien);
         form.add(new JLabel("Loại phí")); form.add(txtLoaiPhi);
+        form.add(new JLabel("Gói tập")); form.add(cbGoiTap);
         form.add(new JLabel("Số tiền (VNĐ)")); form.add(txtSoTien);
         form.add(new JLabel("Ngày thu (yyyy-MM-dd)")); form.add(txtNgayThu);
         form.add(new JLabel("Phương thức TT")); form.add(txtPTTT);
@@ -66,7 +70,7 @@ public class ThuPhiPanel extends JPanel {
         btnPrint.addActionListener(e->onPrint());
         table.addMouseListener(new MouseAdapter(){ @Override public void mouseClicked(MouseEvent e){ int r=table.getSelectedRow(); if(r>=0) fillFormFromTable(r);} });
 
-        setEditing(false); reload();
+        setEditing(false); loadGoiTapCombo(); attachGoiTapListeners(); reload();
     }
 
     private void reload() {
@@ -182,8 +186,31 @@ public class ThuPhiPanel extends JPanel {
         return v;
     }
 
-    private void setEditing(boolean editing){ this.isEditing=editing; btnSave.setEnabled(editing); btnCancel.setEnabled(editing); btnAdd.setEnabled(!editing); btnEdit.setEnabled(!editing); btnDelete.setEnabled(!editing); btnSearch.setEnabled(!editing); btnRefresh.setEnabled(!editing); txtMaPhieu.setEnabled(false); txtMaHoiVien.setEnabled(editing); txtLoaiPhi.setEnabled(editing); txtSoTien.setEnabled(editing); txtNgayThu.setEnabled(editing); txtPTTT.setEnabled(editing); txtNguoiThu.setEnabled(editing); txtGhiChu.setEnabled(editing); }
-    private void clearForm(){ txtMaPhieu.setText(""); txtMaHoiVien.setText(""); txtLoaiPhi.setText(""); txtSoTien.setText(""); txtNgayThu.setText(""); txtPTTT.setText(""); txtNguoiThu.setText(""); txtGhiChu.setText(""); }
+    private void loadGoiTapCombo(){
+        try {
+            cbGoiTap.removeAllItems();
+            List<GoiTap> list = new GoiTapDAO().getActive();
+            for (GoiTap g : list) cbGoiTap.addItem(g);
+            cbGoiTap.setSelectedIndex(-1);
+        } catch (Exception ignored) {}
+    }
+
+    private void attachGoiTapListeners(){
+        cbGoiTap.addActionListener(e -> {
+            GoiTap sel = (GoiTap) cbGoiTap.getSelectedItem();
+            if (sel != null) {
+                if (ValidationUtil.isEmpty(txtLoaiPhi.getText())) {
+                    txtLoaiPhi.setText("Gói tập");
+                }
+                if (sel.getGiaTien() != null) {
+                    txtSoTien.setText(sel.getGiaTien().toPlainString());
+                }
+            }
+        });
+    }
+
+    private void setEditing(boolean editing){ this.isEditing=editing; btnSave.setEnabled(editing); btnCancel.setEnabled(editing); btnAdd.setEnabled(!editing); btnEdit.setEnabled(!editing); btnDelete.setEnabled(!editing); btnSearch.setEnabled(!editing); btnRefresh.setEnabled(!editing); txtMaPhieu.setEnabled(false); txtMaHoiVien.setEnabled(editing); txtLoaiPhi.setEnabled(editing); txtSoTien.setEnabled(editing); txtNgayThu.setEnabled(editing); txtPTTT.setEnabled(editing); txtNguoiThu.setEnabled(editing); txtGhiChu.setEnabled(editing); cbGoiTap.setEnabled(editing); }
+    private void clearForm(){ txtMaPhieu.setText(""); txtMaHoiVien.setText(""); txtLoaiPhi.setText(""); txtSoTien.setText(""); txtNgayThu.setText(""); txtPTTT.setText(""); txtNguoiThu.setText(""); txtGhiChu.setText(""); if (cbGoiTap.getItemCount()>0) cbGoiTap.setSelectedIndex(-1); }
     private void fillFormFromTable(int r){ txtMaPhieu.setText(safe(table.getValueAt(r,0))); txtMaHoiVien.setText(safe(table.getValueAt(r,1))); txtLoaiPhi.setText(safe(table.getValueAt(r,3))); txtSoTien.setText(safe(table.getValueAt(r,4))); txtNgayThu.setText(safeDate(table.getValueAt(r,5))); txtPTTT.setText(safe(table.getValueAt(r,6))); txtNguoiThu.setText(safe(table.getValueAt(r,7))); txtGhiChu.setText(safe(table.getValueAt(r,8))); }
     private String safe(Object v){ return v==null?"":String.valueOf(v);} private String safeDate(Object v){ if(v==null) return ""; if(v instanceof Date) return df.format((Date)v); return String.valueOf(v);} private Date parseDate(String s) throws ParseException{ if(s==null||s.trim().isEmpty()) return null; return df.parse(s.trim()); }
     private ThuPhi buildFromForm() {
@@ -219,6 +246,13 @@ public class ThuPhiPanel extends JPanel {
             return null;
         }
         
+        // Nếu chọn gói tập, gợi ý loại phí và số tiền
+        GoiTap sel = (GoiTap) cbGoiTap.getSelectedItem();
+        if (sel != null) {
+            if (ValidationUtil.isEmpty(loai)) loai = "Gói tập";
+            if (ValidationUtil.isEmpty(soStr) && sel.getGiaTien() != null) soStr = sel.getGiaTien().toPlainString();
+        }
+
         // Validation số tiền
         BigDecimal soTien = null;
         try {

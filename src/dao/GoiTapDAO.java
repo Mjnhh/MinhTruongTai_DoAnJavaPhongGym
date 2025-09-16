@@ -207,9 +207,9 @@ public class GoiTapDAO {
         return list;
     }
     
-    // Sinh mã gói tập kế tiếp dạng GT###
+    // Sinh mã gói tập kế tiếp dạng GT###, bỏ qua các mã không theo định dạng (ví dụ: GTVIP)
     public String getNextId() {
-        String sql = "SELECT MAX(CAST(SUBSTRING(MaGoiTap, 3, 3) AS INT)) FROM GoiTap";
+        String sql = "SELECT MAX(TRY_CAST(SUBSTRING(MaGoiTap, 3, 3) AS INT)) FROM GoiTap WHERE MaGoiTap LIKE 'GT___'";
         
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
